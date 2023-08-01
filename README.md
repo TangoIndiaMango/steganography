@@ -2,6 +2,9 @@
 ### Using AES and Blowfish to perform steganography for both text and Image
 
 #### Description:
+- ###### Note:
+- This description is for the image encryption alone [any_imagesize.blowfish.py, any_imagesize.py].
+- The steno_image.py has a limitation of image size.
 This is a Python script for image steganography that uses AES encryption to embed a secret image into another cover image. 
 The hidden secret image can later be extracted from the stego image using the provided key.
 #### Requirements:
