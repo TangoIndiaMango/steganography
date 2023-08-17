@@ -3,6 +3,7 @@ from Crypto.Random import get_random_bytes
 from PIL import Image
 import os
 
+
 # Constants
 BLOCK_SIZE = 8  # Blowfish block size (in bytes)
 

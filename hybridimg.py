@@ -7,12 +7,14 @@ AES_BLOCK_SIZE = 16  # AES block size (in bytes)
 BLOWFISH_BLOCK_SIZE = 8  # Blowfish block size (in bytes)
 
 
+# encryption using AES
 def encrypt_data_aes(key, data):
     cipher = AES.new(key, AES.MODE_CFB)
     ciphertext = cipher.encrypt(data)
     return cipher.iv + ciphertext
 
 
+# decryption using AES
 def decrypt_data_aes(key, data):
     iv = data[:AES_BLOCK_SIZE]
     ciphertext = data[AES_BLOCK_SIZE:]
@@ -20,12 +22,14 @@ def decrypt_data_aes(key, data):
     return cipher.decrypt(ciphertext)
 
 
+# encryption using Blowfish
 def encrypt_data_blowfish(key, data):
     cipher = Blowfish.new(key, Blowfish.MODE_CFB)
     ciphertext = cipher.encrypt(data)
     return cipher.iv + ciphertext
 
 
+# decryption using Blowfish
 def decrypt_data_blowfish(key, data):
     iv = data[:BLOWFISH_BLOCK_SIZE]
     ciphertext = data[BLOWFISH_BLOCK_SIZE:]
@@ -44,14 +48,19 @@ def embed_message_in_image(image, secret_image_path):
 
     # Encrypt the secret image data using AES and then Blowfish
     encrypted_secret_image_aes = encrypt_data_aes(aes_key, secret_image_data)
-    encrypted_secret_image = encrypt_data_blowfish(blowfish_key, encrypted_secret_image_aes)
+    encrypted_secret_image = encrypt_data_blowfish(
+        blowfish_key, encrypted_secret_image_aes
+    )
 
     # Store the lengths of the encrypted images (in bytes) as 4-byte integers
     aes_image_length = len(encrypted_secret_image_aes).to_bytes(4, byteorder="big")
     blowfish_image_length = len(encrypted_secret_image).to_bytes(4, byteorder="big")
 
     # Convert the data to binary string
-    data_bin = "".join(format(byte, "08b") for byte in aes_image_length + blowfish_image_length + encrypted_secret_image)
+    data_bin = "".join(
+        format(byte, "08b")
+        for byte in aes_image_length + blowfish_image_length + encrypted_secret_image
+    )
 
     # Embed the data into the image pixels (LSB Embedding)
     pixels = image.load()
@@ -139,9 +148,13 @@ def main():
                     print("Secret image embedded and stego image saved successfully!")
 
                     # Save the keys to files
-                    with open(output_stego_image_path + ".aes_key", "wb") as aes_key_file:
+                    with open(
+                        output_stego_image_path + ".aes_key", "wb"
+                    ) as aes_key_file:
                         aes_key_file.write(aes_key)
-                    with open(output_stego_image_path + ".blowfish_key", "wb") as blowfish_key_file:
+                    with open(
+                        output_stego_image_path + ".blowfish_key", "wb"
+                    ) as blowfish_key_file:
                         blowfish_key_file.write(blowfish_key)
                 except Exception as e:
                     print(f"Error: {e}")
@@ -150,7 +163,9 @@ def main():
                 # Decode (Extract hidden secret image from the cover image)
                 stego_image_path = input("Enter the path to the stego image: ")
                 aes_key_file_path = input("Enter the path to the AES key file: ")
-                blowfish_key_file_path = input("Enter the path to the Blowfish key file: ")
+                blowfish_key_file_path = input(
+                    "Enter the path to the Blowfish key file: "
+                )
                 output_secret_image_path = input(
                     "Enter the name for the extracted secret image output file: "
                 )
