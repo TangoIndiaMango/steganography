@@ -7,7 +7,8 @@ idna==3.4
 Naked==0.1.32
 Pillow==10.0.0
 pycparser==2.21
-pycryptodome==3.18.0
+pycryptodome==3.19.0
+pycryptodome-test-vectors==1.0.13
 PyYAML==6.0.1
 requests==2.31.0
 shellescape==3.8.1
