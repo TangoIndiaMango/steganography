@@ -1,0 +1,534 @@
+import time
+import tkinter as tk
+from tkinter import ttk
+from tkinter import filedialog, PhotoImage
+from tkinter import messagebox
+from Crypto.Random import get_random_bytes
+from Crypto.Cipher import AES, Blowfish
+import os
+from PIL import Image, ImageTk
+
+
+AES_BLOCK_SIZE = 16  # AES block size (in bytes)
+BLOWFISH_BLOCK_SIZE = 8  # Blowfish block size (in bytes)
+
+
+class App(tk.Tk):
+    def __init__(self, *args, **kwargs):
+        tk.Tk.__init__(self, *args, **kwargs)
+        self.geometry("750x500")
+
+        container = tk.Frame(self, bg="#2f4155")
+        container.pack(side="top", fill="both", expand=True)
+        container.grid_rowconfigure(0, weight=1)
+        container.grid_columnconfigure(0, weight=1)
+
+        self.frames = {}
+        for F in (EncodePage, DecodePage):
+            frame = F(container, self)
+            self.frames[F] = frame
+            frame.grid(row=0, column=0, sticky="nsew")
+
+        self.show_frame(EncodePage)
+
+    def show_frame(self, cont):
+        frame = self.frames[cont]
+        frame.tkraise()
+
+
+class EncodePage(tk.Frame):
+    def __init__(self, parent, controller):
+        tk.Frame.__init__(self, parent, bg="#2f4155")
+
+        frame1 = tk.Frame(
+            self, bg="black", bd=3, width=340, height=280, relief=tk.GROOVE
+        )
+        frame1.place(x=10, y=80)
+        self.lbl1 = tk.Label(frame1, bg="black")
+        self.lbl1.place(x=0, y=5)
+
+        # Second frame
+        frame2 = tk.Frame(
+            self, bg="white", bd=3, width=340, height=280, relief=tk.GROOVE
+        )
+        frame2.place(x=360, y=80)
+        self.lbl2 = tk.Label(frame2, bg="white")
+        self.lbl2.place(x=0, y=5)
+
+        # Output Stego Image frame
+        frame_output = tk.Frame(
+            self, bg="#2f4155", bd=2, width=330, height=100, relief=tk.GROOVE
+        )
+        frame_output.place(x=10, y=360)
+        tk.Label(
+            frame_output,
+            text="Output Stego Image",
+            font="arial 12 bold",
+            bg="#2f4155",
+            fg="white",
+        ).grid(row=0, column=0)
+        self.output_stego_image_path_entry = tk.Entry(
+            frame_output, width=30, font="arial 12"
+        )
+        self.output_stego_image_path_entry.grid(row=0, column=1, padx=6, pady=6)
+        tk.Button(
+            frame_output, text="Choose", command=self.choose_output_stego_image
+        ).grid(row=0, column=2, padx=6, pady=6)
+
+        # Third frame
+        frame3 = tk.Frame(
+            self, bg="#2f4155", bd=2, width=150, height=70, relief=tk.GROOVE
+        )
+        frame3.place(x=100, y=420)
+        tk.Button(
+            frame3,
+            text="Choose Image",
+            font="arial 10 bold",
+            bg="#4CAF50",
+            fg="white",
+            command=self.choose_cover_image,
+        ).place(x=20, y=30)
+        tk.Label(
+            frame3,
+            text="Picture, Image, Photo File",
+            font="arial 10",
+            bg="#2f4155",
+            fg="white",
+        ).place(x=20, y=5)
+
+        # Encode button
+        tk.Button(
+            self,
+            text="Encode",
+            font="arial 12 bold",
+            bg="#4CAF50",
+            fg="white",
+            command=self.encode,
+        ).place(x=530, y=30)
+
+        # Fourth frame
+        frame4 = tk.Frame(
+            self, bg="#2f4155", bd=2, width=150, height=70, relief=tk.GROOVE
+        )
+        frame4.place(x=380, y=420)
+        tk.Button(
+            frame4,
+            text="Choose Image",
+            font="arial 10 bold",
+            bg="#4CAF50",
+            fg="white",
+            command=self.choose_secret_image,
+        ).place(x=20, y=30)
+        tk.Label(
+            frame4,
+            text="Picture, Image, Photo File",
+            font="arial 10",
+            bg="#2f4155",
+            fg="white",
+        ).place(x=20, y=5)
+
+        tk.Button(
+            self,
+            text="Switch to Decode",
+            font="arial 12 bold",
+            bg="#FF9800",
+            fg="white",
+            command=lambda: controller.show_frame(DecodePage),
+        ).pack()
+
+        self.cover_image_path_entry = None
+
+    def choose_cover_image(self):
+        filename = filedialog.askopenfilename(
+            initialdir=os.getcwd(),
+            title="Select Cover Image",
+            filetypes=(
+                ("PNG FILE", "*.png"),
+                ("JPEG FILE", "*.jpeg"),
+                ("JPG FILE", "*.jpg"),
+                ("ALL FILES", "*.*"),
+            ),
+        )
+        img = Image.open(filename)
+        img = img.resize((340, 280), Image.ADAPTIVE)
+        img = ImageTk.PhotoImage(img)
+        self.lbl1.configure(image=img)
+        self.lbl1.image = img
+        self.cover_image_path_entry = filename
+
+        self.secret_image_path_entry = None
+
+    def choose_secret_image(self):
+        filename = filedialog.askopenfilename(
+            initialdir=os.getcwd(),
+            title="Select Secret Image",
+            filetypes=(
+                ("PNG FILE", "*.png"),
+                ("JPEG FILE", "*.jpeg"),
+                ("JPG FILE", "*.jpg"),
+                ("ALL FILES", "*.*"),
+            ),
+        )
+        img = Image.open(filename)
+        img = img.resize((340, 280), Image.ADAPTIVE)
+        img = ImageTk.PhotoImage(img)
+        self.lbl2.configure(image=img)
+        self.lbl2.image = img
+        self.secret_image_path_entry = filename
+
+    def choose_output_stego_image(self):
+        filename = filedialog.asksaveasfilename(
+            initialdir=os.getcwd(),
+            title="Save As",
+            defaultextension=".png",
+            filetypes=[("PNG files", "*.png")],
+        )
+        self.output_stego_image_path_entry.delete(0, tk.END)
+        self.output_stego_image_path_entry.insert(0, filename)
+
+    def encode(self):
+        cover_image_path = self.cover_image_path_entry
+        secret_image_path = self.secret_image_path_entry
+        output_stego_image_path = self.output_stego_image_path_entry.get()
+
+        if not (cover_image_path and secret_image_path and output_stego_image_path):
+            messagebox.showerror(
+                "Error",
+                "Please choose cover image, secret image, and output stego image.",
+            )
+            return
+
+        try:
+            start_time = time.time()
+            cover_image = Image.open(cover_image_path).convert("RGB")
+            stego_image, aes_key, blowfish_key = self.embed_message_in_image(
+                cover_image, secret_image_path
+            )
+
+            stego_image.save(output_stego_image_path)
+            end_time = time.time() - start_time
+            messagebox.showinfo(
+                "Success",
+                "Secret image embedded and stego image saved successfully!"
+                f"\nTime taken for encoding: {end_time:.2f} seconds",
+            )
+
+            with open(output_stego_image_path + ".aes_key", "wb") as aes_key_file:
+                aes_key_file.write(aes_key)
+
+            with open(
+                output_stego_image_path + ".blowfish_key", "wb"
+            ) as blowfish_key_file:
+                blowfish_key_file.write(blowfish_key)
+
+        except Exception as e:
+            messagebox.showerror("Error", f"An error occurred: {e}")
+
+    def embed_message_in_image(self, image, secret_image_path):
+        with open(secret_image_path, "rb") as secret_image_file:
+            secret_image_data = secret_image_file.read()
+
+        aes_key = get_random_bytes(AES_BLOCK_SIZE)
+        blowfish_key = get_random_bytes(BLOWFISH_BLOCK_SIZE)
+
+        encrypted_secret_image_aes = self.encrypt_data_aes(aes_key, secret_image_data)
+        encrypted_secret_image = self.encrypt_data_blowfish(
+            blowfish_key, encrypted_secret_image_aes
+        )
+
+        aes_image_length = len(encrypted_secret_image_aes).to_bytes(4, byteorder="big")
+        blowfish_image_length = len(encrypted_secret_image).to_bytes(4, byteorder="big")
+
+        data_bin = "".join(
+            format(byte, "08b")
+            for byte in aes_image_length
+            + blowfish_image_length
+            + encrypted_secret_image
+        )        
+
+        pixels = image.load()
+        pixel_index = 0
+        for i in range(image.width):
+            for j in range(image.height):
+                r, g, b = pixels[i, j]
+
+                if pixel_index < len(data_bin):
+                    r = r & ~1 | int(data_bin[pixel_index])
+                    pixel_index += 1
+                if pixel_index < len(data_bin):
+                    g = g & ~1 | int(data_bin[pixel_index])
+                    pixel_index += 1
+                if pixel_index < len(data_bin):
+                    b = b & ~1 | int(data_bin[pixel_index])
+                    pixel_index += 1
+
+                pixels[i, j] = (r, g, b)
+
+        return image, aes_key, blowfish_key
+
+    def encrypt_data_aes(self, key, data):
+        cipher = AES.new(key, AES.MODE_CFB)
+        ciphertext = cipher.encrypt(data)
+        return cipher.iv + ciphertext
+
+    def encrypt_data_blowfish(self, key, data):
+        cipher = Blowfish.new(key, Blowfish.MODE_CFB)
+        ciphertext = cipher.encrypt(data)
+        return cipher.iv + ciphertext
+
+
+class DecodePage(tk.Frame):
+    def __init__(self, parent, controller):
+        tk.Frame.__init__(self, parent, bg="#2f4155")
+
+        self.stego_image_path_entry = None
+        self.aes_key_path_entry = None
+        self.blowfish_key_path_entry = None
+        self.output_secret_image_path_entry = None
+        
+        frame1 = tk.Frame(
+            self, bg="black", bd=3, width=340, height=280, relief=tk.GROOVE
+        )
+        frame1.place(x=10, y=80)
+        self.lbl1 = tk.Label(frame1, bg="black")
+        self.lbl1.place(x=0, y=5)
+
+        # Aes key frame
+        frame_aes = tk.Frame(
+            self, bg="#2f4155", bd=2, width=300, height=100, relief=tk.GROOVE
+        )
+        frame_aes.place(x=360, y=80)
+        tk.Label(
+            frame_aes, text="Aes key", font="arial 12 bold", bg="#2f4155", fg="white"
+        ).grid(row=0, column=0)
+        self.aes_key_path_entry = tk.Entry(frame_aes, width=15, font="arial 12")
+        self.aes_key_path_entry.grid(row=0, column=1, padx=3, pady=3)
+        tk.Button(
+            frame_aes,
+            text="Choose",
+            font="arial 12 bold",
+            bg="#4CAF50",
+            fg="white",
+            command=self.choose_aes_key,
+        ).grid(row=0, column=2, padx=3, pady=3)
+
+        # Blowfish key frame
+        frame_blowfish = tk.Frame(
+            self, bg="#2f4155", bd=2, width=300, height=100, relief=tk.GROOVE
+        )
+        frame_blowfish.place(x=360, y=300)
+        tk.Label(
+            frame_blowfish,
+            text="Blowfish key",
+            font="arial 12 bold",
+            bg="#2f4155",
+            fg="white",
+        ).grid(row=0, column=0)
+        self.blowfish_key_path_entry = tk.Entry(
+            frame_blowfish, width=15, font="arial 12"
+        )
+        self.blowfish_key_path_entry.grid(row=0, column=1, padx=3, pady=3)
+        tk.Button(
+            frame_blowfish,
+            text="Choose",
+            font="arial 12 bold",
+            bg="#4CAF50",
+            fg="white",
+            command=self.choose_blowfish_key,
+        ).grid(row=0, column=2, padx=3, pady=3)
+
+        # Output Stego Image frame
+        frame_output = tk.Frame(
+            self, bg="#2f4155", bd=2, width=330, height=100, relief=tk.GROOVE
+        )
+        frame_output.place(x=10, y=360)
+        tk.Label(
+            frame_output,
+            text="Output Secret Image",
+            font="arial 15 bold",
+            bg="#2f4155",
+            fg="white",
+        ).grid(row=0, column=0)
+        self.output_secret_image_path_entry = tk.Entry(
+            frame_output, width=30, font="arial 15"
+        )
+        self.output_secret_image_path_entry.grid(row=0, column=1, padx=6, pady=6)
+        tk.Button(
+            frame_output,
+            text="Choose",
+            command=self.choose_output_secret_image,
+        ).grid(row=0, column=2, padx=6, pady=6)
+
+        # Third frame
+        frame3 = tk.Frame(
+            self, bg="#2f4155", bd=2, width=340, height=80, relief=tk.GROOVE
+        )
+        frame3.place(x=200, y=420)
+        tk.Button(
+            frame3,
+            text="Choose Stego Image",
+            font="arial 12 bold",
+            bg="#4CAF50",
+            fg="white",
+            command=self.choose_stego_image,
+        ).place(x=20, y=30)
+        tk.Button(
+            frame3,
+            text="Decode",
+            font="arial 12 bold",
+            bg="#4CAF50",
+            fg="white",
+            command=self.decode,
+        ).place(x=180, y=30)
+        tk.Label(
+            frame3,
+            text="Picture, Image, Photo File",
+            font="arial 10",
+            bg="#2f4155",
+            fg="white",
+        ).place(x=50, y=5)
+
+        tk.Button(
+            self,
+            text="Switch to Encode",
+            font="arial 12 bold",
+            bg="#FF9800",
+            fg="white",
+            command=lambda: controller.show_frame(EncodePage),
+        ).pack()
+
+        # # Progress bar
+        # self.progress_var = tk.DoubleVar()
+        # ttk.Progressbar(
+        #     self,
+        #     orient="horizontal",
+        #     length=200,
+        #     mode="determinate",
+        #     variable=self.progress_var,
+        # ).place(x=500, y=440)
+
+    def choose_stego_image(self):
+        filename = filedialog.askopenfilename(
+            initialdir=os.getcwd(),
+            title="Select Stego Image",
+            filetypes=(
+                ("PNG FILE", "*.png"),
+                ("JPEG FILE", "*.jpeg"),
+                ("JPG FILE", "*.jpg"),
+                ("ALL FILES", "*.*"),
+            ),
+        )
+        img = Image.open(filename)
+        img = img.resize((340, 280), Image.ADAPTIVE)
+        img = ImageTk.PhotoImage(img)
+        self.lbl1.configure(image=img)
+        self.lbl1.image = img
+        self.stego_image_path_entry = filename
+
+    def choose_aes_key(self):
+        filename = filedialog.askopenfilename(
+            initialdir=os.getcwd(), title="Select AES Key File"
+        )
+        self.aes_key_path_entry.delete(0, tk.END)
+        self.aes_key_path_entry.insert(0, filename)
+
+    def choose_blowfish_key(self):
+        filename = filedialog.askopenfilename(
+            initialdir=os.getcwd(), title="Select Blowfish Key File"
+        )
+        self.blowfish_key_path_entry.delete(0, tk.END)
+        self.blowfish_key_path_entry.insert(0, filename)
+
+    def choose_output_secret_image(self):
+        filename = filedialog.asksaveasfilename(
+            initialdir=os.getcwd(),
+            title="Save Output Secret Image As",
+            defaultextension=".png",
+            filetypes=[("PNG files", "*.png")],
+        )
+        self.output_secret_image_path_entry.delete(0, tk.END)
+        self.output_secret_image_path_entry.insert(0, filename)
+
+    def decrypt_data_aes(self, key, data):
+        iv = data[:AES_BLOCK_SIZE]
+        ciphertext = data[AES_BLOCK_SIZE:]
+        cipher = AES.new(key, AES.MODE_CFB, iv=iv)
+        return cipher.decrypt(ciphertext)
+
+    def decrypt_data_blowfish(self, key, data):
+        iv = data[:BLOWFISH_BLOCK_SIZE]
+        ciphertext = data[BLOWFISH_BLOCK_SIZE:]
+        cipher = Blowfish.new(key, Blowfish.MODE_CFB, iv=iv)
+        return cipher.decrypt(ciphertext)
+
+    def extract_message_from_image(
+        self, image, aes_key, blowfish_key, output_secret_image_path
+    ):
+        # Extract the data from the image pixels (LSB Extraction)
+        data_bin = ""
+        pixels = image.load()
+        for i in range(image.width):
+            for j in range(image.height):
+                r, g, b = pixels[i, j]
+                data_bin += str(r & 1)
+                data_bin += str(g & 1)
+                data_bin += str(b & 1)
+
+        # Convert the binary string back to bytes
+        data = bytes(int(data_bin[i : i + 8], 2) for i in range(0, len(data_bin), 8))
+
+        # Extract the lengths of the encrypted images (4 bytes each) and convert them to integers
+        aes_image_length = int.from_bytes(data[:4], byteorder="big")
+        blowfish_image_length = int.from_bytes(data[4:8], byteorder="big")
+
+        # Extract the encrypted image data from the data
+        encrypted_image = data[8 : 8 + aes_image_length + blowfish_image_length]
+
+        # Decrypt the secret image using Blowfish and then AES
+        decrypted_secret_image_aes = self.decrypt_data_blowfish(
+            blowfish_key, encrypted_image
+        )
+        decrypted_secret_image_data = self.decrypt_data_aes(
+            aes_key, decrypted_secret_image_aes
+        )
+
+        # Save the extracted secret image data as bytes to a file
+        with open(output_secret_image_path, "wb") as output_image_file:
+            output_image_file.write(decrypted_secret_image_data)
+
+        print("Secret image extracted and saved successfully!")
+
+    def decode(self):
+        stego_image_path = self.stego_image_path_entry
+        aes_key_file_path = self.aes_key_path_entry.get()
+        blowfish_key_file_path = self.blowfish_key_path_entry.get()
+        output_secret_image_path = self.output_secret_image_path_entry.get()
+        try:
+            start_time = time.time()
+            stego_image_pil = Image.open(stego_image_path)
+
+            with open(aes_key_file_path, "rb") as aes_key_file:
+                aes_key = aes_key_file.read()
+            with open(blowfish_key_file_path, "rb") as blowfish_key_file:
+                blowfish_key = blowfish_key_file.read()
+
+            self.extract_message_from_image(
+                stego_image_pil, aes_key, blowfish_key, output_secret_image_path
+            )
+
+            end_time = time.time() - start_time
+            messagebox.showinfo(
+                "Success",
+                "Secret image extracted and saved successfully!"
+                f"\nTime taken for decoding: {end_time:.2f} seconds",
+            )
+
+            print(f"Time taken for decoding: {end_time:.4f} seconds")
+
+            print("Done decoding")
+        except Exception as e:
+            messagebox.showerror("Error", f"Error: {e}")
+
+
+app = App()
+app.mainloop()

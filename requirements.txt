@@ -5,6 +5,8 @@ crypto==1.4.1
 cryptography==41.0.2
 idna==3.4
 Naked==0.1.32
+numpy==1.26.2
+opencv-python==4.8.1.78
 Pillow==10.0.0
 pycparser==2.21
 pycryptodome==3.19.0
