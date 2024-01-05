@@ -1,27 +1,55 @@
 import time
 import tkinter as tk
 from tkinter import ttk
-from tkinter import filedialog, PhotoImage
-from tkinter import messagebox
+from tkinter import filedialog, PhotoImage, messagebox
 from Crypto.Random import get_random_bytes
 from Crypto.Cipher import AES, Blowfish
 import os
-from PIL import Image, ImageTk
+from PIL import Image, ImageTk, ImageFile
 
+ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 AES_BLOCK_SIZE = 16  # AES block size (in bytes)
 BLOWFISH_BLOCK_SIZE = 8  # Blowfish block size (in bytes)
 
 
 class App(tk.Tk):
+    total_decoded_attempts = 0
+    successful_decoded_attempts = 0
+    successful_embedded_attempts = 0
+    false_positive_attempts = 0
+    false_negative_attempts = 0
+
+    # Additional counters for embedding accuracy
+    total_embedded_data_points = 0
+    correctly_embedded_data_points = 0
+
+    secret_image = None  # original image
+    decode_image = None  # decoded image
+    
     def __init__(self, *args, **kwargs):
         tk.Tk.__init__(self, *args, **kwargs)
-        self.geometry("750x500")
+        self.geometry("790x550")
+        self.title("Stegnography")
 
         container = tk.Frame(self, bg="#2f4155")
         container.pack(side="top", fill="both", expand=True)
         container.grid_rowconfigure(0, weight=1)
         container.grid_columnconfigure(0, weight=1)
+
+        image_icon = PhotoImage(file="img.png")
+        self.iconphoto(False, image_icon)
+        
+        tk.Label(self, text="Stegnography", font="arial 20 bold", bg="#2f4155", fg="white").place(x=70, y=30)
+        
+        tk.Button(
+            self,
+            text="View Accuracy",
+            font="arial 12 bold",
+            bg="#2196F3",
+            fg="white",
+            command=self.view_accuracy,
+        ).pack()
 
         self.frames = {}
         for F in (EncodePage, DecodePage):
@@ -34,6 +62,57 @@ class App(tk.Tk):
     def show_frame(self, cont):
         frame = self.frames[cont]
         frame.tkraise()
+
+    def view_accuracy(self):
+        # Calculate accuracy metrics
+        ra = self.calculate_recovery_accuracy()
+        fpr = self.calculate_false_positive_rate()
+        fnr = self.calculate_false_negative_rate()
+        embedding_accuracy = self.calculate_embedding_accuracy()
+
+        # Display accuracy metrics
+        accuracy_message = (
+            f"Recovery Accuracy (RA): {ra:.2f}%\n"
+            f"False Positive Rate (FPR): {fpr:.2f}%\n"
+            f"False Negative Rate (FNR): {fnr:.2f}%\n"
+            f"Embedding Accuracy: {embedding_accuracy:.2f}%"
+        )
+
+        messagebox.showinfo("Accuracy Metrics", accuracy_message)
+
+    def calculate_recovery_accuracy(self):
+        return (
+            
+            #NOTE: if it is successfully recive data, can't this be success_decode/success_encode?
+            (self.successful_decoded_attempts / self.total_decoded_attempts) * 100
+            if self.total_decoded_attempts > 0
+            else 0
+        )
+
+    def calculate_false_positive_rate(self):
+        return (
+            (self.false_positive_attempts / self.total_decoded_attempts) * 100
+            if self.total_decoded_attempts > 0
+            else 0
+        )
+
+    def calculate_false_negative_rate(self):
+        return (
+            (self.false_negative_attempts / self.total_decoded_attempts) * 100
+            if self.total_decoded_attempts > 0
+            else 0
+        )
+
+    def calculate_embedding_accuracy(self):
+        return (
+            (
+                self.correctly_embedded_data_points
+                / self.total_embedded_data_points
+            )
+            * 100
+            if self.total_embedded_data_points > 0
+            else 0
+        )
 
 
 class EncodePage(tk.Frame):
@@ -104,7 +183,7 @@ class EncodePage(tk.Frame):
             bg="#4CAF50",
             fg="white",
             command=self.encode,
-        ).place(x=530, y=30)
+        ).place(x=550, y=450)
 
         # Fourth frame
         frame4 = tk.Frame(
@@ -191,6 +270,9 @@ class EncodePage(tk.Frame):
         secret_image_path = self.secret_image_path_entry
         output_stego_image_path = self.output_stego_image_path_entry.get()
 
+        # keep a copy of the secret_image i.e original image
+        app.secret_image = Image.open(secret_image_path).getdata()
+
         if not (cover_image_path and secret_image_path and output_stego_image_path):
             messagebox.showerror(
                 "Error",
@@ -220,9 +302,16 @@ class EncodePage(tk.Frame):
                 output_stego_image_path + ".blowfish_key", "wb"
             ) as blowfish_key_file:
                 blowfish_key_file.write(blowfish_key)
+            
+            # successful embedding
+            app.successful_embedded_attempts += 1
+
 
         except Exception as e:
             messagebox.showerror("Error", f"An error occurred: {e}")
+        
+        # increase embedding points
+        app.total_embedded_data_points += 1
 
     def embed_message_in_image(self, image, secret_image_path):
         with open(secret_image_path, "rb") as secret_image_file:
@@ -244,7 +333,7 @@ class EncodePage(tk.Frame):
             for byte in aes_image_length
             + blowfish_image_length
             + encrypted_secret_image
-        )        
+        )
 
         pixels = image.load()
         pixel_index = 0
@@ -299,7 +388,7 @@ class DecodePage(tk.Frame):
         )
         frame_aes.place(x=360, y=80)
         tk.Label(
-            frame_aes, text="Aes key", font="arial 12 bold", bg="#2f4155", fg="white"
+            frame_aes, text="AES Key", font="arial 12 bold", bg="#2f4155", fg="white"
         ).grid(row=0, column=0)
         self.aes_key_path_entry = tk.Entry(frame_aes, width=15, font="arial 12")
         self.aes_key_path_entry.grid(row=0, column=1, padx=3, pady=3)
@@ -319,7 +408,7 @@ class DecodePage(tk.Frame):
         frame_blowfish.place(x=360, y=300)
         tk.Label(
             frame_blowfish,
-            text="Blowfish key",
+            text="Blowfish Key",
             font="arial 12 bold",
             bg="#2f4155",
             fg="white",
@@ -337,7 +426,7 @@ class DecodePage(tk.Frame):
             command=self.choose_blowfish_key,
         ).grid(row=0, column=2, padx=3, pady=3)
 
-        # Output Stego Image frame
+        # Output Secret Image frame
         frame_output = tk.Frame(
             self, bg="#2f4155", bd=2, width=330, height=100, relief=tk.GROOVE
         )
@@ -379,7 +468,7 @@ class DecodePage(tk.Frame):
             bg="#4CAF50",
             fg="white",
             command=self.decode,
-        ).place(x=180, y=30)
+        ).place(x=200, y=30)
         tk.Label(
             frame3,
             text="Picture, Image, Photo File",
@@ -406,6 +495,15 @@ class DecodePage(tk.Frame):
         #     mode="determinate",
         #     variable=self.progress_var,
         # ).place(x=500, y=440)
+
+        # Decoded Image frame
+        frame_decoded_image = tk.Frame(
+            self, bg="white", bd=3, width=340, height=280, relief=tk.GROOVE
+        )
+        frame_decoded_image.place(x=720, y=80)
+
+        self.lbl_decoded_image = tk.Label(frame_decoded_image, bg="black")
+        self.lbl_decoded_image.place(x=0, y=5)
 
     def choose_stego_image(self):
         filename = filedialog.askopenfilename(
@@ -464,39 +562,62 @@ class DecodePage(tk.Frame):
     def extract_message_from_image(
         self, image, aes_key, blowfish_key, output_secret_image_path
     ):
-        # Extract the data from the image pixels (LSB Extraction)
-        data_bin = ""
-        pixels = image.load()
-        for i in range(image.width):
-            for j in range(image.height):
-                r, g, b = pixels[i, j]
-                data_bin += str(r & 1)
-                data_bin += str(g & 1)
-                data_bin += str(b & 1)
+        try:
+            # Extract the data from the image pixels (LSB Extraction)
+            data_bin = ""
+            pixels = image.load()
+            for i in range(image.width):
+                for j in range(image.height):
+                    r, g, b = pixels[i, j]
+                    data_bin += str(r & 1)
+                    data_bin += str(g & 1)
+                    data_bin += str(b & 1)
 
-        # Convert the binary string back to bytes
-        data = bytes(int(data_bin[i : i + 8], 2) for i in range(0, len(data_bin), 8))
+            # Convert the binary string back to bytes
+            data = bytes(
+                int(data_bin[i : i + 8], 2) for i in range(0, len(data_bin), 8)
+            )
 
-        # Extract the lengths of the encrypted images (4 bytes each) and convert them to integers
-        aes_image_length = int.from_bytes(data[:4], byteorder="big")
-        blowfish_image_length = int.from_bytes(data[4:8], byteorder="big")
+            # Extract the lengths of the encrypted images (4 bytes each) and convert them to integers
+            aes_image_length = int.from_bytes(data[:4], byteorder="big")
+            blowfish_image_length = int.from_bytes(data[4:8], byteorder="big")
 
-        # Extract the encrypted image data from the data
-        encrypted_image = data[8 : 8 + aes_image_length + blowfish_image_length]
+            # Extract the encrypted image data from the data
+            encrypted_image = data[8 : 8 + aes_image_length + blowfish_image_length]
 
-        # Decrypt the secret image using Blowfish and then AES
-        decrypted_secret_image_aes = self.decrypt_data_blowfish(
-            blowfish_key, encrypted_image
-        )
-        decrypted_secret_image_data = self.decrypt_data_aes(
-            aes_key, decrypted_secret_image_aes
-        )
+            # Decrypt the secret image using Blowfish and then AES
+            decrypted_secret_image_aes = self.decrypt_data_blowfish(
+                blowfish_key, encrypted_image
+            )
+            decrypted_secret_image_data = self.decrypt_data_aes(
+                aes_key, decrypted_secret_image_aes
+            )
 
-        # Save the extracted secret image data as bytes to a file
-        with open(output_secret_image_path, "wb") as output_image_file:
-            output_image_file.write(decrypted_secret_image_data)
-
-        print("Secret image extracted and saved successfully!")
+            # Save the extracted secret image data as bytes to a file
+            with open(output_secret_image_path, "wb") as output_image_file:
+                output_image_file.write(decrypted_secret_image_data)
+            time.sleep(20)
+            # Display the extracted secret image
+            try:
+                if (
+                    os.path.exists(output_secret_image_path)
+                    and os.path.getsize(output_secret_image_path) > 0
+                ):
+                    decoded_image = Image.open(output_secret_image_path)
+                    decoded_image = decoded_image.resize((340, 280), Image.ADAPTIVE)
+                    decoded_image_tk = ImageTk.PhotoImage(decoded_image)
+                    self.lbl_decoded_image.configure(image=decoded_image_tk)
+                    self.lbl_decoded_image.image = decoded_image_tk
+                else:
+                    raise FileNotFoundError("Output file not found or empty.")
+            except Exception as e:
+                print(f"Error displaying decoded image: {e}")
+                self.lbl_decoded_image.configure(text="Error displaying decoded image")
+                self.lbl_decoded_image.image = None
+        except Exception as e:
+            print(f"Error extracting message from image: {e}")
+            self.lbl_decoded_image.configure(text="Error extracting message from image")
+            self.lbl_decoded_image.image = None
 
     def decode(self):
         stego_image_path = self.stego_image_path_entry
@@ -517,18 +638,38 @@ class DecodePage(tk.Frame):
             )
 
             end_time = time.time() - start_time
+            # since decoding is a success we increse the successful decoding atempts
+            app.successful_decoded_attempts += 1
             messagebox.showinfo(
                 "Success",
                 "Secret image extracted and saved successfully!"
                 f"\nTime taken for decoding: {end_time:.2f} seconds",
             )
+            
+            # get a copy of the decode image
+            app.decode_image = Image.open(output_secret_image_path).getdata()
 
+            # compare the original self.secret_image and self.decoded_image
+            # NOTE: but this will fail due to not getting the original image back completely 
+            for original_pixel, decoded_pixel in zip(
+                app.secret_image, app.decode_image
+            ):
+                if original_pixel == decoded_pixel:
+                    # we should increase the correctly embedded point
+                    app.correctly_embedded_data_points += 1
+                else:
+                    # false positive attempt increase an error occured maybe incorrect data due to original and decode not matching
+                    app.false_positive_attempts += 1
+  
             print(f"Time taken for decoding: {end_time:.4f} seconds")
 
             print("Done decoding")
         except Exception as e:
             messagebox.showerror("Error", f"Error: {e}")
-
+            # flase negative attepmt increase this occur due to undetected data
+            app.false_negative_attempts += 1
+        # increase the number of decoding 
+        app.total_decoded_attempts += 1
 
 app = App()
 app.mainloop()
