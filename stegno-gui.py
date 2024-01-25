@@ -22,11 +22,11 @@ class App(tk.Tk):
 
     # Additional counters for embedding accuracy
     total_embedded_data_points = 0
-    correctly_embedded_data_points = 0
+    correctly_decoded_data_points = 0
 
     secret_image = None  # original image
     decode_image = None  # decoded image
-    
+
     def __init__(self, *args, **kwargs):
         tk.Tk.__init__(self, *args, **kwargs)
         self.geometry("790x550")
@@ -39,9 +39,11 @@ class App(tk.Tk):
 
         image_icon = PhotoImage(file="img.png")
         self.iconphoto(False, image_icon)
-        
-        tk.Label(self, text="Stegnography", font="arial 20 bold", bg="#2f4155", fg="white").place(x=70, y=30)
-        
+
+        tk.Label(
+            self, text="Stegnography", font="arial 20 bold", bg="#2f4155", fg="white"
+        ).place(x=70, y=30)
+
         tk.Button(
             self,
             text="View Accuracy",
@@ -68,6 +70,7 @@ class App(tk.Tk):
         ra = self.calculate_recovery_accuracy()
         fpr = self.calculate_false_positive_rate()
         fnr = self.calculate_false_negative_rate()
+        tpr = self.calculate_true_positive_rate()
         embedding_accuracy = self.calculate_embedding_accuracy()
 
         # Display accuracy metrics
@@ -75,45 +78,64 @@ class App(tk.Tk):
             f"Recovery Accuracy (RA): {ra:.2f}%\n"
             f"False Positive Rate (FPR): {fpr:.2f}%\n"
             f"False Negative Rate (FNR): {fnr:.2f}%\n"
+            f"True Positive Rate (TPR): {tpr:.2f}%\n"
             f"Embedding Accuracy: {embedding_accuracy:.2f}%"
         )
 
         messagebox.showinfo("Accuracy Metrics", accuracy_message)
 
     def calculate_recovery_accuracy(self):
+        # Correctly identifying hidden data
         return (
-            
-            #NOTE: if it is successfully recive data, can't this be success_decode/success_encode?
             (self.successful_decoded_attempts / self.total_decoded_attempts) * 100
             if self.total_decoded_attempts > 0
             else 0
         )
 
     def calculate_false_positive_rate(self):
+        # Incorrectly identifying hidden data when there's none
         return (
-            (self.false_positive_attempts / self.total_decoded_attempts) * 100
-            if self.total_decoded_attempts > 0
+            (
+                self.false_positive_attempts
+                / (self.false_positive_attempts + self.successful_decoded_attempts)
+            )
+            * 100
+            if (self.false_positive_attempts + self.successful_decoded_attempts) > 0
             else 0
         )
 
     def calculate_false_negative_rate(self):
+        # Incorrectly identifying hidden data when we have one
         return (
-            (self.false_negative_attempts / self.total_decoded_attempts) * 100
-            if self.total_decoded_attempts > 0
+            (
+                self.false_negative_attempts
+                / (self.false_negative_attempts + self.successful_decoded_attempts)
+            )
+            * 100
+            if (self.false_negative_attempts + self.successful_decoded_attempts) > 0
+            else 0
+        )
+
+    def calculate_true_positive_rate(self):
+        # Correctly identifying hidden data when we have one
+        return (
+            (
+                self.correctly_decoded_data_points
+                / (self.correctly_decoded_data_points + self.false_negative_attempts)
+            )
+            * 100
+            if (self.correctly_decoded_data_points + self.false_negative_attempts) > 0
             else 0
         )
 
     def calculate_embedding_accuracy(self):
+        # Successfully embedding data
         return (
-            (
-                self.correctly_embedded_data_points
-                / self.total_embedded_data_points
-            )
+            (self.successful_embedded_attempts / self.total_embedded_data_points)
             * 100
             if self.total_embedded_data_points > 0
             else 0
         )
-
 
 class EncodePage(tk.Frame):
     def __init__(self, parent, controller):
@@ -156,24 +178,24 @@ class EncodePage(tk.Frame):
 
         # Third frame
         frame3 = tk.Frame(
-            self, bg="#2f4155", bd=2, width=150, height=70, relief=tk.GROOVE
+            self, bg="#2f4155", bd=2, width=160, height=70, relief=tk.GROOVE
         )
         frame3.place(x=100, y=420)
         tk.Button(
             frame3,
-            text="Choose Image",
+            text="Choose Cover Image",
             font="arial 10 bold",
             bg="#4CAF50",
             fg="white",
             command=self.choose_cover_image,
-        ).place(x=20, y=30)
+        ).place(x=10, y=30)
         tk.Label(
             frame3,
-            text="Picture, Image, Photo File",
+            text="Picture, Image, Photo",
             font="arial 10",
             bg="#2f4155",
             fg="white",
-        ).place(x=20, y=5)
+        ).place(x=10, y=5)
 
         # Encode button
         tk.Button(
@@ -187,24 +209,24 @@ class EncodePage(tk.Frame):
 
         # Fourth frame
         frame4 = tk.Frame(
-            self, bg="#2f4155", bd=2, width=150, height=70, relief=tk.GROOVE
+            self, bg="#2f4155", bd=2, width=160, height=70, relief=tk.GROOVE
         )
         frame4.place(x=380, y=420)
         tk.Button(
             frame4,
-            text="Choose Image",
+            text="Choose Secret Image",
             font="arial 10 bold",
             bg="#4CAF50",
             fg="white",
             command=self.choose_secret_image,
-        ).place(x=20, y=30)
+        ).place(x=10, y=30)
         tk.Label(
             frame4,
-            text="Picture, Image, Photo File",
+            text="Picture, Image, Photo",
             font="arial 10",
             bg="#2f4155",
             fg="white",
-        ).place(x=20, y=5)
+        ).place(x=10, y=5)
 
         tk.Button(
             self,
@@ -302,16 +324,17 @@ class EncodePage(tk.Frame):
                 output_stego_image_path + ".blowfish_key", "wb"
             ) as blowfish_key_file:
                 blowfish_key_file.write(blowfish_key)
-            
+
             # successful embedding
             app.successful_embedded_attempts += 1
-
+            print(app.successful_embedded_attempts)
 
         except Exception as e:
             messagebox.showerror("Error", f"An error occurred: {e}")
-        
         # increase embedding points
-        app.total_embedded_data_points += 1
+        finally:
+            app.total_embedded_data_points += 1
+            print(app.total_embedded_data_points)
 
     def embed_message_in_image(self, image, secret_image_path):
         with open(secret_image_path, "rb") as secret_image_file:
@@ -374,7 +397,7 @@ class DecodePage(tk.Frame):
         self.aes_key_path_entry = None
         self.blowfish_key_path_entry = None
         self.output_secret_image_path_entry = None
-        
+
         frame1 = tk.Frame(
             self, bg="black", bd=3, width=340, height=280, relief=tk.GROOVE
         )
@@ -608,6 +631,8 @@ class DecodePage(tk.Frame):
                     decoded_image_tk = ImageTk.PhotoImage(decoded_image)
                     self.lbl_decoded_image.configure(image=decoded_image_tk)
                     self.lbl_decoded_image.image = decoded_image_tk
+
+                    # we have successfully decode the image and also outputted it so it's an actual positive instance
                 else:
                     raise FileNotFoundError("Output file not found or empty.")
             except Exception as e:
@@ -645,22 +670,24 @@ class DecodePage(tk.Frame):
                 "Secret image extracted and saved successfully!"
                 f"\nTime taken for decoding: {end_time:.2f} seconds",
             )
-            
+
             # get a copy of the decode image
             app.decode_image = Image.open(output_secret_image_path).getdata()
 
             # compare the original self.secret_image and self.decoded_image
-            # NOTE: but this will fail due to not getting the original image back completely 
+            # NOTE: but this will fail due to not getting the original image back completely
             for original_pixel, decoded_pixel in zip(
                 app.secret_image, app.decode_image
             ):
-                if original_pixel == decoded_pixel:
+                if all(original_channel == decoded_channel for original_channel, decoded_channel in zip(original_pixel, decoded_pixel)):
                     # we should increase the correctly embedded point
-                    app.correctly_embedded_data_points += 1
+                    app.correctly_decoded_data_points += 1
+                    print("Correctly decoded data point", app.correctly_decoded_data_points)
                 else:
                     # false positive attempt increase an error occured maybe incorrect data due to original and decode not matching
                     app.false_positive_attempts += 1
-  
+                    print("False positive attempt", app.false_positive_attempts)
+
             print(f"Time taken for decoding: {end_time:.4f} seconds")
 
             print("Done decoding")
@@ -668,8 +695,11 @@ class DecodePage(tk.Frame):
             messagebox.showerror("Error", f"Error: {e}")
             # flase negative attepmt increase this occur due to undetected data
             app.false_negative_attempts += 1
-        # increase the number of decoding 
-        app.total_decoded_attempts += 1
+        # increase the number of decoding
+        finally:
+            app.total_decoded_attempts += 1
+            print("Total decoding attempts", app.total_decoded_attempts)
+
 
 app = App()
 app.mainloop()
