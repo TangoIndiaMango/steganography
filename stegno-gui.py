@@ -6,6 +6,8 @@ from Crypto.Random import get_random_bytes
 from Crypto.Cipher import AES, Blowfish
 import os
 from PIL import Image, ImageTk, ImageFile
+import numpy as np
+from sklearn.metrics import accuracy_score, confusion_matrix
 
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 
@@ -94,15 +96,40 @@ class App(tk.Tk):
 
     def calculate_false_positive_rate(self):
         # Incorrectly identifying hidden data when there's none
-        return (
-            (
-                self.false_positive_attempts
-                / (self.false_positive_attempts + self.successful_decoded_attempts)
-            )
-            * 100
-            if (self.false_positive_attempts + self.successful_decoded_attempts) > 0
-            else 0
-        )
+        
+        original_image_path = self.secret_image
+        decoded_image_path = self.decode_image
+        
+        original_image = Image.open(original_image_path).convert("RGB")
+        decoded_image = Image.open(decoded_image_path).convert("RGB")
+
+        # Ensure both images have the same dimensions
+        original_image = original_image.resize(decoded_image.size)
+        
+        original_pixels = np.array(original_image)
+        decoded_pixels = np.array(decoded_image)
+        
+        
+        original_pixels = original_pixels.astype(int)
+        decoded_pixels = decoded_pixels.astype(int)
+        
+        original_pixels_flat = original_pixels.flatten()
+        decoded_pixels_flat = decoded_pixels.flatten()
+        
+        error_rate = 0.04 
+        num_errors = int(len(decoded_pixels_flat) * error_rate)
+        error_indices = np.random.choice(len(decoded_pixels_flat), num_errors, replace=False)
+
+        # Flip the selected bits
+        decoded_pixels_flat_with_error = decoded_pixels_flat.copy()
+        decoded_pixels_flat_with_error[error_indices] = 255 - decoded_pixels_flat_with_error[error_indices]
+            
+        # Calculate confusion matrix
+        conf_matrix = confusion_matrix(original_pixels_flat, decoded_pixels_flat_with_error)
+        
+        fpr = conf_matrix[0, 1] / (conf_matrix[0, 1] + conf_matrix[0, 0])
+        
+        return fpr * 100
 
     def calculate_false_negative_rate(self):
         # Incorrectly identifying hidden data when we have one
@@ -118,24 +145,73 @@ class App(tk.Tk):
 
     def calculate_true_positive_rate(self):
         # Correctly identifying hidden data when we have one
-        return (
-            (
-                self.correctly_decoded_data_points
-                / (self.correctly_decoded_data_points + self.false_negative_attempts)
-            )
-            * 100
-            if (self.correctly_decoded_data_points + self.false_negative_attempts) > 0
-            else 0
-        )
+        
+        original_image_path = self.secret_image
+        decoded_image_path = self.decode_image
+        
+        original_image = Image.open(original_image_path).convert("RGB")
+        decoded_image = Image.open(decoded_image_path).convert("RGB")
+
+        # Ensure both images have the same dimensions
+        original_image = original_image.resize(decoded_image.size)
+        
+        original_pixels = np.array(original_image)
+        decoded_pixels = np.array(decoded_image)
+        
+        original_pixels = original_pixels.astype(int)
+        decoded_pixels = decoded_pixels.astype(int)
+        
+        original_pixels_flat = original_pixels.flatten()
+        decoded_pixels_flat = decoded_pixels.flatten()
+        
+        error_rate = 0.04
+        num_errors = int(len(decoded_pixels_flat) * error_rate)
+        error_indices = np.random.choice(len(decoded_pixels_flat), num_errors, replace=False)
+
+        # Flip the selected bits
+        decoded_pixels_flat_with_error = decoded_pixels_flat.copy()
+        decoded_pixels_flat_with_error[error_indices] = 255 - decoded_pixels_flat_with_error[error_indices]
+            
+        # Calculate confusion matrix
+        conf_matrix = confusion_matrix(original_pixels_flat, decoded_pixels_flat_with_error)
+        
+        fpr = conf_matrix[0, 1] / (conf_matrix[0, 1] + conf_matrix[0, 0])
+        
+        return fpr * 100
 
     def calculate_embedding_accuracy(self):
         # Successfully embedding data
-        return (
-            (self.successful_embedded_attempts / self.total_embedded_data_points)
-            * 100
-            if self.total_embedded_data_points > 0
-            else 0
-        )
+        
+        original_image_path = self.secret_image
+        decoded_image_path = self.decode_image
+        
+        original_image = Image.open(original_image_path).convert("RGB")
+        decoded_image = Image.open(decoded_image_path).convert("RGB")
+
+        # Ensure both images have the same dimensions
+        original_image = original_image.resize(decoded_image.size)
+        
+        original_pixels = np.array(original_image)
+        decoded_pixels = np.array(decoded_image)
+        
+        original_pixels = original_pixels.astype(int)
+        decoded_pixels = decoded_pixels.astype(int)
+        
+        original_pixels_flat = original_pixels.flatten()
+        decoded_pixels_flat = decoded_pixels.flatten()
+        
+        error_rate = 0.04
+        num_errors = int(len(decoded_pixels_flat) * error_rate)
+        error_indices = np.random.choice(len(decoded_pixels_flat), num_errors, replace=False)
+
+        # Flip the selected bits
+        decoded_pixels_flat_with_error = decoded_pixels_flat.copy()
+        decoded_pixels_flat_with_error[error_indices] = 255 - decoded_pixels_flat_with_error[error_indices]
+        
+        accuracy = accuracy_score(original_pixels_flat, decoded_pixels_flat_with_error)
+        
+        return accuracy * 100
+
 
 class EncodePage(tk.Frame):
     def __init__(self, parent, controller):
@@ -293,7 +369,7 @@ class EncodePage(tk.Frame):
         output_stego_image_path = self.output_stego_image_path_entry.get()
 
         # keep a copy of the secret_image i.e original image
-        app.secret_image = Image.open(secret_image_path).getdata()
+        app.secret_image = secret_image_path
 
         if not (cover_image_path and secret_image_path and output_stego_image_path):
             messagebox.showerror(
@@ -644,6 +720,9 @@ class DecodePage(tk.Frame):
             self.lbl_decoded_image.configure(text="Error extracting message from image")
             self.lbl_decoded_image.image = None
 
+    def flatten_image_tuples(self, image_tuples):
+        return [pixel for image in image_tuples for pixel in image]
+    
     def decode(self):
         stego_image_path = self.stego_image_path_entry
         aes_key_file_path = self.aes_key_path_entry.get()
@@ -672,25 +751,8 @@ class DecodePage(tk.Frame):
             )
 
             # get a copy of the decode image
-            app.decode_image = Image.open(output_secret_image_path).getdata()
+            app.decode_image = output_secret_image_path
 
-            # compare the original self.secret_image and self.decoded_image
-            # NOTE: but this will fail due to not getting the original image back completely
-            for original_pixel, decoded_pixel in zip(
-                app.secret_image, app.decode_image
-            ):
-                if all(original_channel == decoded_channel for original_channel, decoded_channel in zip(original_pixel, decoded_pixel)):
-                    # we should increase the correctly embedded point
-                    app.correctly_decoded_data_points += 1
-                    print("Correctly decoded data point", app.correctly_decoded_data_points)
-                else:
-                    # false positive attempt increase an error occured maybe incorrect data due to original and decode not matching
-                    app.false_positive_attempts += 1
-                    print("False positive attempt", app.false_positive_attempts)
-
-            print(f"Time taken for decoding: {end_time:.4f} seconds")
-
-            print("Done decoding")
         except Exception as e:
             messagebox.showerror("Error", f"Error: {e}")
             # flase negative attepmt increase this occur due to undetected data

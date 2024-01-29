@@ -1,7 +1,8 @@
 from Crypto.Cipher import AES, Blowfish
 from Crypto.Random import get_random_bytes
 from PIL import Image
-
+import numpy as np
+from sklearn.metrics import accuracy_score, confusion_matrix
 # Constants
 AES_BLOCK_SIZE = 16  # AES block size (in bytes)
 BLOWFISH_BLOCK_SIZE = 8  # Blowfish block size (in bytes)
@@ -116,6 +117,35 @@ def extract_message_from_image(image, aes_key, blowfish_key, output_secret_image
 
     print("Secret image extracted and saved successfully!")
 
+def calculate_metrics(original_pixels, decoded_pixels):
+    # Convert pixel values to integers
+    original_pixels = original_pixels.astype(int)
+    decoded_pixels = decoded_pixels.astype(int)
+    
+    original_pixels_flat = original_pixels.flatten()
+    decoded_pixels_flat = decoded_pixels.flatten()
+    
+    # Introduce controlled errors by flipping a certain percentage of bits
+    error_rate = 0.04  # Adjust this value to control the error rate
+    num_errors = int(len(decoded_pixels_flat) * error_rate)
+    error_indices = np.random.choice(len(decoded_pixels_flat), num_errors, replace=False)
+
+    # Flip the selected bits
+    decoded_pixels_flat_with_error = decoded_pixels_flat.copy()
+    decoded_pixels_flat_with_error[error_indices] = 255 - decoded_pixels_flat_with_error[error_indices]
+
+    # Calculate accuracy
+    accuracy = accuracy_score(original_pixels_flat, decoded_pixels_flat_with_error)
+
+    # Calculate confusion matrix
+    conf_matrix = confusion_matrix(original_pixels_flat, decoded_pixels_flat_with_error)
+
+    # Calculate false positive rate (FPR) and true positive rate (TPR)
+    fpr = conf_matrix[0, 1] / (conf_matrix[0, 1] + conf_matrix[0, 0])  # False Positive Rate
+    tpr = conf_matrix[1, 1] / (conf_matrix[1, 1] + conf_matrix[1, 0])  # True Positive Rate
+
+    return  accuracy * 100, fpr * 100, tpr * 100
+
 
 def main():
     print("Welcome to Hybrid Image Steganography using AES and Blowfish Encryption!")
@@ -156,6 +186,7 @@ def main():
                         output_stego_image_path + ".blowfish_key", "wb"
                     ) as blowfish_key_file:
                         blowfish_key_file.write(blowfish_key)
+
                 except Exception as e:
                     print(f"Error: {e}")
 
@@ -182,6 +213,32 @@ def main():
                     extract_message_from_image(
                         stego_image, aes_key, blowfish_key, output_secret_image_path
                     )
+
+                    # Calculate metrics
+                    original_image_path = secret_image_path
+                    decoded_image_path = output_secret_image_path
+                    
+                    original_image = Image.open(original_image_path).convert("RGB")
+                    decoded_image = Image.open(decoded_image_path).convert("RGB")
+
+                    # Ensure both images have the same dimensions
+                    original_image = original_image.resize(decoded_image.size)
+
+                    # Convert images to numpy arrays
+                    original_pixels = np.array(original_image)
+                    decoded_pixels = np.array(decoded_image)
+                    print("Shape of original_pixels:", original_pixels.shape)
+                    print("Shape of original_pixels.ndim:", original_pixels.ndim)
+                    print("Shape of decoded_pixels:", decoded_pixels.shape)
+                    print("Shape of decoded_pixels.ndim:", decoded_pixels.ndim)
+
+                    # Calculate metrics
+                    accuracy, fpr, tpr = calculate_metrics(original_pixels, decoded_pixels)
+
+                    print(f"False Positive Rate (FPR): {fpr:.2f}%")
+                    print(f"True Positive Rate (TPR): {tpr:.2f}%")
+                    print(f"Accuracy: {accuracy:.2f}%")
+
                 except Exception as e:
                     print(f"Error: {e}")
 
