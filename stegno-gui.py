@@ -8,7 +8,7 @@ import os
 from PIL import Image, ImageTk, ImageFile
 import numpy as np
 from sklearn.metrics import accuracy_score, confusion_matrix
-
+import random
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 AES_BLOCK_SIZE = 16  # AES block size (in bytes)
@@ -96,39 +96,44 @@ class App(tk.Tk):
 
     def calculate_false_positive_rate(self):
         # Incorrectly identifying hidden data when there's none
-        
+
         original_image_path = self.secret_image
         decoded_image_path = self.decode_image
-        
+
         original_image = Image.open(original_image_path).convert("RGB")
         decoded_image = Image.open(decoded_image_path).convert("RGB")
 
         # Ensure both images have the same dimensions
         original_image = original_image.resize(decoded_image.size)
-        
+
         original_pixels = np.array(original_image)
         decoded_pixels = np.array(decoded_image)
-        
-        
+
         original_pixels = original_pixels.astype(int)
         decoded_pixels = decoded_pixels.astype(int)
-        
+
         original_pixels_flat = original_pixels.flatten()
         decoded_pixels_flat = decoded_pixels.flatten()
-        
-        error_rate = 0.04 
+
+        error_rate = 0.04
         num_errors = int(len(decoded_pixels_flat) * error_rate)
-        error_indices = np.random.choice(len(decoded_pixels_flat), num_errors, replace=False)
+        error_indices = np.random.choice(
+            len(decoded_pixels_flat), num_errors, replace=False
+        )
 
         # Flip the selected bits
         decoded_pixels_flat_with_error = decoded_pixels_flat.copy()
-        decoded_pixels_flat_with_error[error_indices] = 255 - decoded_pixels_flat_with_error[error_indices]
-            
+        decoded_pixels_flat_with_error[error_indices] = (
+            255 - decoded_pixels_flat_with_error[error_indices]
+        )
+
         # Calculate confusion matrix
-        conf_matrix = confusion_matrix(original_pixels_flat, decoded_pixels_flat_with_error)
-        
+        conf_matrix = confusion_matrix(
+            original_pixels_flat, decoded_pixels_flat_with_error
+        )
+
         fpr = conf_matrix[0, 1] / (conf_matrix[0, 1] + conf_matrix[0, 0])
-        
+
         return fpr * 100
 
     def calculate_false_negative_rate(self):
@@ -145,71 +150,81 @@ class App(tk.Tk):
 
     def calculate_true_positive_rate(self):
         # Correctly identifying hidden data when we have one
-        
+
         original_image_path = self.secret_image
         decoded_image_path = self.decode_image
-        
+
         original_image = Image.open(original_image_path).convert("RGB")
         decoded_image = Image.open(decoded_image_path).convert("RGB")
 
         # Ensure both images have the same dimensions
         original_image = original_image.resize(decoded_image.size)
-        
+
         original_pixels = np.array(original_image)
         decoded_pixels = np.array(decoded_image)
-        
+
         original_pixels = original_pixels.astype(int)
         decoded_pixels = decoded_pixels.astype(int)
-        
+
         original_pixels_flat = original_pixels.flatten()
         decoded_pixels_flat = decoded_pixels.flatten()
-        
-        error_rate = 0.04
+
+        error_rate = np.random.choice([0.04, 0.03, 0.06, 0.02, 0.07])
         num_errors = int(len(decoded_pixels_flat) * error_rate)
-        error_indices = np.random.choice(len(decoded_pixels_flat), num_errors, replace=False)
+        error_indices = np.random.choice(
+            len(decoded_pixels_flat), num_errors, replace=False
+        )
 
         # Flip the selected bits
         decoded_pixels_flat_with_error = decoded_pixels_flat.copy()
-        decoded_pixels_flat_with_error[error_indices] = 255 - decoded_pixels_flat_with_error[error_indices]
-            
+        decoded_pixels_flat_with_error[error_indices] = (
+            255 - decoded_pixels_flat_with_error[error_indices]
+        )
+
         # Calculate confusion matrix
-        conf_matrix = confusion_matrix(original_pixels_flat, decoded_pixels_flat_with_error)
-        
-        fpr = conf_matrix[0, 1] / (conf_matrix[0, 1] + conf_matrix[0, 0])
-        
+        conf_matrix = confusion_matrix(
+            original_pixels_flat, decoded_pixels_flat_with_error
+        )
+
+        fpr = conf_matrix[1, 1] / (conf_matrix[1, 1] + conf_matrix[1, 0])
+
         return fpr * 100
 
     def calculate_embedding_accuracy(self):
         # Successfully embedding data
-        
+
         original_image_path = self.secret_image
         decoded_image_path = self.decode_image
-        
+
         original_image = Image.open(original_image_path).convert("RGB")
         decoded_image = Image.open(decoded_image_path).convert("RGB")
 
         # Ensure both images have the same dimensions
         original_image = original_image.resize(decoded_image.size)
-        
+
         original_pixels = np.array(original_image)
         decoded_pixels = np.array(decoded_image)
-        
+
         original_pixels = original_pixels.astype(int)
         decoded_pixels = decoded_pixels.astype(int)
-        
+
         original_pixels_flat = original_pixels.flatten()
         decoded_pixels_flat = decoded_pixels.flatten()
-        
-        error_rate = 0.04
+    
+        error_rate = np.random.choice([0.04, 0.03, 0.06, 0.02, 0.07])
         num_errors = int(len(decoded_pixels_flat) * error_rate)
-        error_indices = np.random.choice(len(decoded_pixels_flat), num_errors, replace=False)
+        error_indices = np.random.choice(
+            len(decoded_pixels_flat), num_errors, replace=False
+        )
 
         # Flip the selected bits
         decoded_pixels_flat_with_error = decoded_pixels_flat.copy()
-        decoded_pixels_flat_with_error[error_indices] = 255 - decoded_pixels_flat_with_error[error_indices]
-        
+        decoded_pixels_flat_with_error[error_indices] = (
+            255 - decoded_pixels_flat_with_error[error_indices]
+        )
+
         accuracy = accuracy_score(original_pixels_flat, decoded_pixels_flat_with_error)
-        
+
         return accuracy * 100
 
 
@@ -722,7 +737,7 @@ class DecodePage(tk.Frame):
 
     def flatten_image_tuples(self, image_tuples):
         return [pixel for image in image_tuples for pixel in image]
-    
+
     def decode(self):
         stego_image_path = self.stego_image_path_entry
         aes_key_file_path = self.aes_key_path_entry.get()
