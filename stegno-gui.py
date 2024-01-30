@@ -8,7 +8,8 @@ import os
 from PIL import Image, ImageTk, ImageFile
 import numpy as np
 from sklearn.metrics import accuracy_score, confusion_matrix
-import random
+from skimage.metrics import peak_signal_noise_ratio
+
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 AES_BLOCK_SIZE = 16  # AES block size (in bytes)
@@ -69,39 +70,26 @@ class App(tk.Tk):
 
     def view_accuracy(self):
         # Calculate accuracy metrics
-        ra = self.calculate_recovery_accuracy()
         fpr = self.calculate_false_positive_rate()
-        fnr = self.calculate_false_negative_rate()
+        pnsr = self.calculate_pnsr()
         tpr = self.calculate_true_positive_rate()
         embedding_accuracy = self.calculate_embedding_accuracy()
 
         # Display accuracy metrics
         accuracy_message = (
-            f"Recovery Accuracy (RA): {ra:.2f}%\n"
             f"False Positive Rate (FPR): {fpr:.2f}%\n"
-            f"False Negative Rate (FNR): {fnr:.2f}%\n"
+            f"Peak Signal-to-Noise Ratio (PSNR): {pnsr:.2f}%\n"
             f"True Positive Rate (TPR): {tpr:.2f}%\n"
             f"Embedding Accuracy: {embedding_accuracy:.2f}%"
         )
 
         messagebox.showinfo("Accuracy Metrics", accuracy_message)
 
-    def calculate_recovery_accuracy(self):
-        # Correctly identifying hidden data
-        return (
-            (self.successful_decoded_attempts / self.total_decoded_attempts) * 100
-            if self.total_decoded_attempts > 0
-            else 0
-        )
-
     def calculate_false_positive_rate(self):
         # Incorrectly identifying hidden data when there's none
 
-        original_image_path = self.secret_image
-        decoded_image_path = self.decode_image
-
-        original_image = Image.open(original_image_path).convert("RGB")
-        decoded_image = Image.open(decoded_image_path).convert("RGB")
+        original_image = Image.open(self.secret_image).convert("RGB")
+        decoded_image = Image.open(self.decode_image).convert("RGB")
 
         # Ensure both images have the same dimensions
         original_image = original_image.resize(decoded_image.size)
@@ -136,26 +124,21 @@ class App(tk.Tk):
 
         return fpr * 100
 
-    def calculate_false_negative_rate(self):
-        # Incorrectly identifying hidden data when we have one
-        return (
-            (
-                self.false_negative_attempts
-                / (self.false_negative_attempts + self.successful_decoded_attempts)
-            )
-            * 100
-            if (self.false_negative_attempts + self.successful_decoded_attempts) > 0
-            else 0
-        )
+    def calculate_pnsr(self):
+        mse = np.mean((self.secret_image - self.decode_image) ** 2)
+
+        #  case where original image == decoded image, we have mse = 0 we can either return 100 as a perfect match or inf
+        if mse == 0:
+            return 100
+
+        pnsr_value = peak_signal_noise_ratio(self.secret_image, self.decode_image)
+        return pnsr_value
 
     def calculate_true_positive_rate(self):
         # Correctly identifying hidden data when we have one
 
-        original_image_path = self.secret_image
-        decoded_image_path = self.decode_image
-
-        original_image = Image.open(original_image_path).convert("RGB")
-        decoded_image = Image.open(decoded_image_path).convert("RGB")
+        original_image = Image.open(self.secret_image).convert("RGB")
+        decoded_image = Image.open(self.decode_image).convert("RGB")
 
         # Ensure both images have the same dimensions
         original_image = original_image.resize(decoded_image.size)
@@ -193,11 +176,8 @@ class App(tk.Tk):
     def calculate_embedding_accuracy(self):
         # Successfully embedding data
 
-        original_image_path = self.secret_image
-        decoded_image_path = self.decode_image
-
-        original_image = Image.open(original_image_path).convert("RGB")
-        decoded_image = Image.open(decoded_image_path).convert("RGB")
+        original_image = Image.open(self.secret_image).convert("RGB")
+        decoded_image = Image.open(self.decode_image).convert("RGB")
 
         # Ensure both images have the same dimensions
         original_image = original_image.resize(decoded_image.size)
@@ -210,7 +190,7 @@ class App(tk.Tk):
 
         original_pixels_flat = original_pixels.flatten()
         decoded_pixels_flat = decoded_pixels.flatten()
-    
+
         error_rate = np.random.choice([0.04, 0.03, 0.06, 0.02, 0.07])
         num_errors = int(len(decoded_pixels_flat) * error_rate)
         error_indices = np.random.choice(
